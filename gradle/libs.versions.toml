@@ -1,7 +1,7 @@
 [versions]
 desugar_jdk_libs = "2.1.5"
 morphe-patcher = "1.4.1"
-morphe-patches-library = "1.0.2"
+morphe-patches-library = "1.0.2-dev.2"
 smali = "d856bad65f"
 annotation = "1.10.0"
 ksp = "2.3.6"
