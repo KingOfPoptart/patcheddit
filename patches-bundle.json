@@ -1,6 +1,6 @@
 {
-  "created_at": "2026-08-16T03:01:00",
+  "created_at": "2026-08-16T03:51:20",
   "description": "Unofficial build on top of wchill/patcheddit#100: fixes Sync for Reddit's \"Error connecting to Redgifs\" (Redgifs removed the /info endpoint Sync's legacy flow depended on, plus two token-retry bugs -- one found from real user logs, one caught by pdscomp in PR review), and adds a new \"Open Redgifs links in browser view\" setting (Settings > Security, off by default) as a fallback for cases where Redgifs still blocks the native API flow.",
-  "download_url": "https://github.com/KingOfPoptart/patcheddit/releases/download/redgifs-fix-v1/patches-1.4.1-dev.1.mpp",
-  "version": "1.4.1-dev.1"
+  "download_url": "https://github.com/KingOfPoptart/patcheddit/releases/download/redgifs-fix-v1/patches-1.4.1-dev.2.mpp",
+  "version": "1.4.1-dev.2"
 }
