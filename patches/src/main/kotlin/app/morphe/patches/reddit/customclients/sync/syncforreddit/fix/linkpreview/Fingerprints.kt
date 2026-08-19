@@ -3,23 +3,15 @@ package app.morphe.patches.reddit.customclients.sync.syncforreddit.fix.linkprevi
 import app.morphe.patcher.Fingerprint
 import com.android.tools.smali.dexlib2.AccessFlags
 
-// Lnb/h; is the ReplacementSpan (also a Glide Target) that draws Sync's generic
-// "website preview" box for outbound comment/selftext links -- the broken-image
-// placeholder shown when its backend (ap.syncforreddit.com) fails to load a preview.
-internal val websitePreviewSpanDrawFingerprint = Fingerprint(
-    definingClass = "Lnb/h;",
-    name = "draw",
-    returnType = "V",
-    accessFlags = listOf(AccessFlags.PUBLIC),
-    parameters = listOf(
-        "Landroid/graphics/Canvas;",
-        "Ljava/lang/CharSequence;",
-        "I",
-        "I",
-        "F",
-        "I",
-        "I",
-        "I",
-        "Landroid/graphics/Paint;"
-    )
+// Lwc/q; is WebsitePreviewHelper.java. Its a(String) method decides whether a given
+// outbound comment/selftext link is eligible for Sync's "website preview" feature --
+// eligible links get wrapped in an Lnb/h; ReplacementSpan that renders a thumbnail
+// fetched through Sync's own backend (ap.syncforreddit.com), which is permanently
+// offline now that the app is unmaintained (every request returns HTTP 401).
+internal val websitePreviewEligibleFingerprint = Fingerprint(
+    definingClass = "Lwc/q;",
+    name = "a",
+    returnType = "Z",
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.STATIC),
+    parameters = listOf("Ljava/lang/String;")
 )

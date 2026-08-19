@@ -1,6 +1,6 @@
 {
-  "created_at": "2026-08-19T18:58:26",
-  "description": "Unofficial build on top of wchill/patcheddit#100: fixes Sync for Reddit's \"Error connecting to Redgifs\", plus 6 additional bug fixes and a Sync Ultra unlock ported from humzakh/HK-Morphe-Patches -- Fix \"Other Discussions\", Fix imgur links, Fix inline images, Fix Image Post Selftext, Fix Reddit Video Links, Fix r/random, and Unlock Sync Ultra + Fix \"Restore Comment\". Also includes the \"Open Redgifs links in browser view\" setting (Settings > Security, off by default) as a fallback for cases where Redgifs still blocks the native API flow, and a fix that hides the broken placeholder box shown for comment/selftext link previews (Sync's own preview backend is permanently offline) -- the plain link/caption text still renders normally.",
-  "download_url": "https://github.com/KingOfPoptart/patcheddit/releases/download/redgifs-fix-v1/patches-1.4.1-dev.4.mpp",
-  "version": "1.4.1-dev.4"
+  "created_at": "2026-08-19T19:06:05",
+  "description": "Unofficial build on top of wchill/patcheddit#100: fixes Sync for Reddit's \"Error connecting to Redgifs\", plus 6 additional bug fixes and a Sync Ultra unlock ported from humzakh/HK-Morphe-Patches -- Fix \"Other Discussions\", Fix imgur links, Fix inline images, Fix Image Post Selftext, Fix Reddit Video Links, Fix r/random, and Unlock Sync Ultra + Fix \"Restore Comment\". Also includes the \"Open Redgifs links in browser view\" setting (Settings > Security, off by default) as a fallback for cases where Redgifs still blocks the native API flow, and a fix that makes comment/selftext links ineligible for Sync's website preview feature (its backend is permanently offline) instead of reserving blank space for a preview that will never load.",
+  "download_url": "https://github.com/KingOfPoptart/patcheddit/releases/download/redgifs-fix-v1/patches-1.4.1-dev.5.mpp",
+  "version": "1.4.1-dev.5"
 }
