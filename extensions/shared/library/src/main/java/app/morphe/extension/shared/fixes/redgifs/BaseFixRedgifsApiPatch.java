@@ -1,11 +1,16 @@
 package app.morphe.extension.shared.fixes.redgifs;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.json.JSONException;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 import app.morphe.extension.shared.Logger;
 import app.morphe.extension.shared.requests.PatchedditInterceptor;
@@ -19,6 +24,7 @@ import okhttp3.ResponseBody;
 
 public abstract class BaseFixRedgifsApiPatch extends PatchedditInterceptor {
     protected static BaseFixRedgifsApiPatch INSTANCE;
+	private static final Pattern GIF_LOOKUP_ID_PATTERN = Pattern.compile("^[a-z0-9]+$");
     public abstract String getDefaultUserAgent();
 
     public boolean isPatchIncluded() {
@@ -36,6 +42,7 @@ public abstract class BaseFixRedgifsApiPatch extends PatchedditInterceptor {
 
         final String path = request.url().encodedPath();
         Logger.printInfo(() -> "Redgifs: intercepted " + request.method() + " " + path);
+		final String gifId = extractGifLookupId(path);
 
         String userAgent = getDefaultUserAgent();
         boolean forceTokenRefresh = false;
@@ -44,10 +51,14 @@ public abstract class BaseFixRedgifsApiPatch extends PatchedditInterceptor {
             Response response;
             try {
                 response = chain.proceed(request.newBuilder().header("User-Agent", userAgent).build());
-            } catch (IOException ex) {
-                Logger.printException(() -> "Redgifs: request failed (existing Authorization) for " + path, ex);
-                throw ex;
-            }
+			} catch (IOException ex) {
+				if (gifId != null) {
+					Logger.printInfo(() -> "Redgifs: request failed (existing Authorization); synthesizing offline response for " + gifId);
+					return buildLocalJsonResponse(request, buildOfflineGifJson(gifId));
+				}
+				Logger.printException(() -> "Redgifs: request failed (existing Authorization) for " + path, ex);
+				throw ex;
+			}
             if (response.isSuccessful()) {
                 Logger.printInfo(() -> "Redgifs: request succeeded (existing Authorization) for " + path
                         + ", code=" + response.code());
@@ -82,11 +93,15 @@ public abstract class BaseFixRedgifsApiPatch extends PatchedditInterceptor {
             RedgifsTokenManager.RedgifsToken token;
             try {
                 token = RedgifsTokenManager.refreshToken(userAgent, forceTokenRefresh);
-            } catch (IOException ex) {
-                Logger.printException(() -> "Redgifs: failed to obtain temporary token for user agent \""
-                        + finalUserAgent + "\"", ex);
-                throw ex;
-            }
+			} catch (IOException ex) {
+				if (gifId != null) {
+					Logger.printInfo(() -> "Redgifs: token fetch failed; synthesizing offline response for " + gifId);
+					return buildLocalJsonResponse(request, buildOfflineGifJson(gifId));
+				}
+				Logger.printException(() -> "Redgifs: failed to obtain temporary token for user agent \""
+						+ finalUserAgent + "\"", ex);
+				throw ex;
+			}
 
             // Emulate response for old OAuth endpoint
             if (path.equals("/v2/oauth/client")) {
@@ -102,12 +117,22 @@ public abstract class BaseFixRedgifsApiPatch extends PatchedditInterceptor {
             Response response;
             try {
                 response = chain.proceed(modifiedRequest);
-            } catch (IOException ex) {
-                Logger.printException(() -> "Redgifs: request failed for " + path, ex);
-                throw ex;
-            }
+			} catch (IOException ex) {
+				if (gifId != null) {
+					Logger.printInfo(() -> "Redgifs: request failed; synthesizing offline response for " + gifId);
+					return buildLocalJsonResponse(request, buildOfflineGifJson(gifId));
+				}
+				Logger.printException(() -> "Redgifs: request failed for " + path, ex);
+				throw ex;
+			}
             Logger.printInfo(() -> "Redgifs: request for " + path + " returned code=" + response.code());
-            return response;
+			if (gifId != null && !response.isSuccessful() && isRecoverableApiFailure(response.code())) {
+				Logger.printInfo(() -> "Redgifs: API blocked for " + gifId + " (code=" + response.code()
+						+ "); synthesizing offline response");
+				response.close();
+				return buildLocalJsonResponse(request, buildOfflineGifJson(gifId));
+			}
+			return response;
         } catch (JSONException ex) {
             Logger.printException(() -> "Could not parse Redgifs response", ex);
             throw new IOException(ex);
@@ -124,4 +149,49 @@ public abstract class BaseFixRedgifsApiPatch extends PatchedditInterceptor {
                 .body(ResponseBody.create(jsonBody, MediaType.get("application/json")))
                 .build();
     }
+	
+	@Nullable
+	private static String extractGifLookupId(String path) {
+		for (String prefix : new String[]{"/v2/gifs/", "/api/v2/gifs/"}) {
+			if (path.startsWith(prefix)) {
+				String id = path.substring(prefix.length()).toLowerCase(Locale.ROOT);
+				if (id.isEmpty() || id.equals("search")) return null;
+				return GIF_LOOKUP_ID_PATTERN.matcher(id).matches() ? id : null;
+			}
+		}
+		return null;
+	}
+
+	private static String buildOfflineGifJson(String id) {
+		try {
+			String mp4    = "https://media.redgifs.com/" + id + ".mp4";
+			String mobile = "https://media.redgifs.com/" + id + "-mobile.mp4";
+			String poster = "https://media.redgifs.com/" + id + "-poster.jpg";
+			String thumb  = "https://media.redgifs.com/" + id + "-mobile-poster.jpg";
+			JSONObject urls = new JSONObject()
+					.put("hd", mp4).put("sd", mobile).put("mp4", mp4)
+					.put("mp4Mobile", mobile).put("mobile", mobile).put("gif", mp4)
+					.put("poster", poster).put("thumbnail", thumb).put("vthumbnail", thumb);
+			JSONObject files = new JSONObject()
+					.put("hd", new JSONObject().put("contentUrl", mp4).put("width", 1280).put("height", 720))
+					.put("sd", new JSONObject().put("contentUrl", mobile).put("width", 640).put("height", 360))
+					.put("poster", new JSONObject().put("contentUrl", poster));
+			JSONObject gif = new JSONObject()
+					.put("id", id).put("gfyId", id)
+					.put("userName", "redgifs").put("title", id).put("description", "")
+					.put("width", 1280).put("height", 720).put("duration", 10.0)
+					.put("hasAudio", true).put("createDate", System.currentTimeMillis() / 1000)
+					.put("views", 0).put("likes", 0).put("tags", new JSONArray())
+					.put("url", "https://www.redgifs.com/watch/" + id)
+					.put("urls", urls).put("files", files);
+			return new JSONObject().put("gif", gif).toString();
+		} catch (JSONException ex) {
+			return "{\"gif\":{\"id\":\"" + id + "\",\"urls\":{\"hd\":\"https://media.redgifs.com/"
+					+ id + ".mp4\",\"sd\":\"https://media.redgifs.com/" + id + "-mobile.mp4\"}}}";
+		}
+	}
+
+	private static boolean isRecoverableApiFailure(int code) {
+		return code == 401 || code == 403 || code == 407 || code == 429 || (code >= 500 && code <= 599);
+	}
 }
