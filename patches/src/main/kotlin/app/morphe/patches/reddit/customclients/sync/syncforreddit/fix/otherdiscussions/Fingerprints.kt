@@ -11,3 +11,11 @@ internal val otherDiscussionsBuildUrlFingerprint = Fingerprint(
     returnType = "Ljava/lang/String;",
     strings = listOf("submit.json?url=")
 )
+
+// CasualActivity.i1(Context, Post): opens the "Other discussions" screen for a post.
+internal val openOtherDiscussionsFingerprint = Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.STATIC),
+    returnType = "V",
+    parameters = listOf("Landroid/content/Context;", "Lxa/d;"),
+    strings = listOf("This post has no URL!", "url")
+)
