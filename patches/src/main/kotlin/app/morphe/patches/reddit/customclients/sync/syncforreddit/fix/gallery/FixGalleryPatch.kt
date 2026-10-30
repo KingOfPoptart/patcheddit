@@ -6,17 +6,20 @@ import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patches.reddit.customclients.AppCompatibility
 import app.morphe.patches.reddit.customclients.ExtensionPatches
 import app.morphe.util.indexOfFirstInstructionOrThrow
+import app.morphe.util.indexOfFirstInstructionReversedOrThrow
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
+import com.android.tools.smali.dexlib2.iface.reference.StringReference
 
 private const val EXTENSION_CLASS_DESCRIPTOR = "Lapp/morphe/extension/syncforreddit/FixGalleryExtension;"
 
 @Suppress("unused")
 val fixGalleryPatch = bytecodePatch(
     name = "Fix galleries",
-    description = "Fixes Reddit gallery posts failing to open. Reddit now rejects the /api/info endpoint Sync used to load galleries.",
+    description = "Fixes Reddit gallery posts failing to open (Reddit now rejects the /api/info endpoint Sync used), " +
+        "and shows a thumbnail for crossposted galleries instead of a blank placeholder.",
     default = true,
 ) {
     dependsOn(ExtensionPatches.Sync)
@@ -51,5 +54,35 @@ val fixGalleryPatch = bytecodePatch(
                 """
             )
         }
-    }
+    
+        // Crossposted galleries: copy the parent post's first image in as the preview.
+        postParserFingerprint.method.apply {
+            val galleryUrlIndex = indexOfFirstInstructionOrThrow {
+                opcode == Opcode.CONST_STRING &&
+                    ((this as ReferenceInstruction).reference as StringReference).string == "?is_gallery=true"
+            }
+            val postJsonRegister = getInstruction<FiveRegisterInstruction>(
+                indexOfFirstInstructionReversedOrThrow(galleryUrlIndex) {
+                    opcode == Opcode.INVOKE_VIRTUAL &&
+                        ((this as ReferenceInstruction).reference as MethodReference).let {
+                            it.definingClass == "Lorg/json/JSONObject;" && it.name == "optJSONArray"
+                        }
+                }
+            ).registerC
+            val putUrlIndex = indexOfFirstInstructionOrThrow(galleryUrlIndex) {
+                opcode == Opcode.INVOKE_VIRTUAL &&
+                    ((this as ReferenceInstruction).reference as MethodReference).let {
+                        it.definingClass == "Landroid/content/ContentValues;" && it.name == "put" &&
+                            it.parameterTypes == listOf("Ljava/lang/String;", "Ljava/lang/String;")
+                    }
+            }
+            val contentValuesRegister = getInstruction<FiveRegisterInstruction>(putUrlIndex).registerC
+            addInstructions(
+                putUrlIndex + 1,
+                """
+                    invoke-static { v$contentValuesRegister, v$postJsonRegister }, $EXTENSION_CLASS_DESCRIPTOR->addCrosspostGalleryPreview(Landroid/content/ContentValues;Lorg/json/JSONObject;)V
+                """
+            )
+        }
+}
 }

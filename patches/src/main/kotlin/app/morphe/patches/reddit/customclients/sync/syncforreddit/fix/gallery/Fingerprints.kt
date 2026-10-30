@@ -18,3 +18,11 @@ internal val galleryRequestParseResponseFingerprint = Fingerprint(
     // Other request classes share the same error string.
     custom = { _, classDef -> classDef.sourceFile == "OAuthGalleryRequest.java" }
 )
+
+// PostParserHelper.a(...): turns post JSON into ContentValues. Its crosspost-of-a-gallery branch
+// never sets a preview image.
+internal val postParserFingerprint = Fingerprint(
+    returnType = "V",
+    strings = listOf("crosspost_parent_list", "post_cross_origin", "?is_gallery=true"),
+    custom = { _, classDef -> classDef.sourceFile == "PostParserHelper.java" }
+)
