@@ -8,4 +8,5 @@ public abstract class d {
     public abstract String P0();
     public abstract String N0();
     public abstract String U(); // post id
+    public abstract String t0(); // parent_id (t1_/t3_ fullname)
 }
