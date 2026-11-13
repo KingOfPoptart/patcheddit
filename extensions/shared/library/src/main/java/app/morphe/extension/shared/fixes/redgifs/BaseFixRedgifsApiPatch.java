@@ -96,7 +96,7 @@ public abstract class BaseFixRedgifsApiPatch extends PatchedditInterceptor {
 
             RedgifsTokenManager.RedgifsToken token;
             try {
-                token = RedgifsTokenManager.refreshToken(userAgent, forceTokenRefresh);
+                token = RedgifsTokenManager.refreshToken(chain, userAgent, forceTokenRefresh);
 			} catch (IOException ex) {
 				if (gifId != null) {
 					Logger.printInfo(() -> "Redgifs: token fetch failed; synthesizing offline response for " + gifId);

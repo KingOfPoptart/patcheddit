@@ -1,19 +1,19 @@
 package app.morphe.extension.shared.fixes.redgifs;
 
-import static app.morphe.extension.shared.requests.Route.Method.GET;
-
 import androidx.annotation.GuardedBy;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
-import app.morphe.extension.shared.requests.Requester;
+import app.morphe.extension.shared.Logger;
+import okhttp3.Interceptor;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 
 /**
@@ -50,24 +50,37 @@ public class RedgifsTokenManager {
     @GuardedBy("itself")
     private static final Map<String, RedgifsToken> tokenMap = new HashMap<>();
 
-    private static String getToken(String userAgent) throws IOException, JSONException {
-        HttpURLConnection connection = (HttpURLConnection) new URL(GET_TEMPORARY_TOKEN).openConnection();
-        connection.setFixedLengthStreamingMode(0);
-        connection.setRequestMethod(GET.name());
-        connection.setRequestProperty("User-Agent", userAgent);
-        connection.setRequestProperty("Content-Type", "application/json");
-        connection.setRequestProperty("Accept", "application/json");
-        connection.setUseCaches(false);
+    /**
+     * Fetch a temporary token through the caller's own OkHttp chain rather than a separate
+     * HttpURLConnection.
+     *
+     * Redgifs binds a token to the IP address and user agent that requested it, and answers
+     * 401 if the following API call arrives from a different one. A separate HTTP stack does
+     * not share the app client's DNS policy, connection pool or downstream interceptors, so on
+     * dual-stack networks (notably VPNs with distinct IPv4/IPv6 exit addresses) the token could
+     * be issued to one address and then used from another. Going through the same chain keeps
+     * both requests on the same route and with the same on-wire headers.
+     */
+    private static String getToken(Interceptor.Chain chain, String userAgent) throws IOException, JSONException {
+        Request tokenRequest = new Request.Builder()
+                .url(GET_TEMPORARY_TOKEN)
+                .header("User-Agent", userAgent)
+                .header("Accept", "application/json")
+                .build();
 
-        JSONObject responseObject = Requester.parseJSONObject(connection);
-        return responseObject.getString("token");
+        try (Response response = chain.proceed(tokenRequest)) {
+            ResponseBody body = response.body();
+            if (!response.isSuccessful() || body == null) {
+                throw new IOException("Redgifs temporary token request failed, code=" + response.code());
+            }
+            JSONObject responseObject = new JSONObject(body.string());
+            Logger.printInfo(() -> "Redgifs: temporary token issued to addr=" + responseObject.optString("addr")
+                    + ", agent=\"" + responseObject.optString("agent") + "\"");
+            return responseObject.getString("token");
+        }
     }
 
-    public static RedgifsToken refreshToken(String userAgent) throws IOException, JSONException {
-        return refreshToken(userAgent, false);
-    }
-
-    public static RedgifsToken refreshToken(String userAgent, boolean forceRefresh)
+    public static RedgifsToken refreshToken(Interceptor.Chain chain, String userAgent, boolean forceRefresh)
             throws IOException, JSONException {
         synchronized(tokenMap) {
             // Reference: https://github.com/JeffreyCA/Apollo-ImprovedCustomApi/pull/67
@@ -78,7 +91,7 @@ public class RedgifsTokenManager {
 
             // Copy user agent from original request if present because Redgifs verifies
             // that the user agent in subsequent requests matches the one in the OAuth token.
-            String accessToken = getToken(userAgent);
+            String accessToken = getToken(chain, userAgent);
             long refreshTime = System.currentTimeMillis() / 1000;
             token = new RedgifsToken(accessToken, refreshTime);
             tokenMap.put(userAgent, token);
